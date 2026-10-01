@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plantas vs. Zombies: Math Conquest Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Sniglet:wght@800&display=swap');
+        
+        body {
+            font-family: 'Sniglet', cursive;
+            user-select: none;
+            background-color: #1a1c23;
+        }
+
+        .font-game {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        /* Estilos mejorados para bocadillos de diálogo (Legibilidad Alta) */
+        .speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border: 4px solid #1e293b;
+            border-radius: 18px;
+            color: #0f172a;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -15px;
+            left: 30px;
+            border-width: 15px 15px 0;
+            border-style: solid;
+            border-color: #ffffff transparent;
+            display: block;
+            width: 0;
+        }
+
+        .speech-bubble::before {
+            content: '';
+            position: absolute;
+            bottom: -21px;
+            left: 28px;
+            border-width: 17px 17px 0;
+            border-style: solid;
+            border-color: #1e293b transparent;
+            display: block;
+            width: 0;
+        }
+
+        /* Animación del césped */
+        .lawn-grid {
+            background-color: #5c940d;
+            background-image: repeating-linear-gradient(
+                0deg,
+                #5c940d,
+                #5c940d 40px,
+                #4c7c0c 40px,
+                #4c7c0c 80px
+            );
+        }
+
+        /* Animaciones */
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .animate-float {
+            animation: floatSlow 3s ease-in-out infinite;
+        }
+
+        @keyframes zombieWalk {
+            0%, 100% { transform: translateX(0) rotate(0deg); }
+            25% { transform: translateX(-2px) rotate(-2deg); }
+            75% { transform: translateX(2px) rotate(2deg); }
+        }
+
+        .animate-zombie {
+            animation: zombieWalk 0.8s ease-in-out infinite;
+        }
+
+        /* Estilo para Renderizar Fracciones Verticales */
+        .frac {
+            display: inline-flex;
+            flex-direction: column;
+            vertical-align: middle;
+            text-align: center;
+            padding: 0 4px;
+        }
+        .frac .num {
+            border-bottom: 3px solid currentColor;
+            padding-bottom: 2px;
+            line-height: 1;
+        }
+        .frac .den {
+            padding-top: 2px;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col justify-between text-white">
+
+    <!-- BARRA SUPERIOR DE INFORMACIÓN -->
+    <header class="bg-slate-900/90 border-b-4 border-slate-700 p-3 flex justify-between items-center z-20 backdrop-blur-md">
+        <div class="flex items-center space-x-6">
+            <div class="flex items-center bg-slate-800 px-4 py-1.5 rounded-full border-2 border-yellow-500">
+                <span class="text-yellow-400 font-game mr-2 text-xl">🏆</span>
+                <span id="score-display" class="font-game text-xl text-yellow-300">Puntos: 0</span>
+            </div>
+            <div class="flex items-center bg-slate-800 px-4 py-1.5 rounded-full border-2 border-green-500">
+                <span class="text-green-400 font-game mr-2 text-xl">🌎</span>
+                <span id="world-display" class="font-game text-xl text-green-300">Mundo 1-1</span>
+            </div>
+            <div class="flex items-center bg-slate-800 px-4 py-1.5 rounded-full border-2 border-red-500">
+                <span class="text-red-400 font-game mr-2 text-xl">🧠</span>
+                <span id="zombie-count" class="font-game text-xl text-red-300">Oleada: 0/5</span>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <!-- Botón de Música -->
+            <button id="btn-audio" onclick="toggleAudio()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-game px-4 py-2 rounded-xl border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition flex items-center gap-2">
+                <span id="audio-icon">🎵</span> <span id="audio-text">Música: OFF</span>
+            </button>
+            <button onclick="openWorldSelect()" class="bg-amber-600 hover:bg-amber-500 text-white font-game px-4 py-2 rounded-xl border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 transition">
+                🗺️ Seleccionar Mundo
+            </button>
+        </div>
+    </header>
+
+    <!-- ÁREA DE JUEGO (CAMPO DE BATALLA) -->
+    <main class="relative flex-1 lawn-grid overflow-hidden border-b-8 border-amber-900 flex items-center justify-center">
+        
+        <!-- Línea Defensiva (Cuadrícula de Plantas Dinámicas, máx 9) -->
+        <div id="plants-container" class="absolute left-4 bottom-4 top-4 w-48 grid grid-cols-2 grid-rows-5 gap-2 z-10 pointer-events-none">
+            <!-- Las plantas se generan aquí dinámicamente -->
+        </div>
+
+        <!-- Contenedor dinámico de Zombis -->
+        <div id="zombies-container" class="absolute inset-0 pointer-events-none">
+            <!-- Los zombies se renderizan aquí dinámicamente -->
+        </div>
+
+        <!-- Contenedor de Proyectiles -->
+        <div id="projectiles-container" class="absolute inset-0 pointer-events-none"></div>
+
+    </main>
+
+    <!-- PANEL DE CONTROL E INTERACCIÓN -->
+    <footer class="bg-slate-900 border-t-4 border-slate-700 p-4 z-20">
+        <div class="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <!-- Cuadro del Ejercicio -->
+            <div class="bg-slate-800 border-2 border-indigo-500 rounded-2xl p-4 flex-1 w-full text-center shadow-inner">
+                <div id="target-zombie-info" class="text-xs uppercase tracking-wider font-bold text-indigo-400 mb-1">
+                    Apuntando al Zombi más cercano
+                </div>
+                <div id="math-problem" class="text-3xl md:text-4xl font-game text-amber-300 tracking-wide flex items-center justify-center gap-3 min-h-[60px]">
+                    Cargando operación...
+                </div>
+            </div>
+
+            <!-- Controles de Entrada de Respuesta -->
+            <div class="flex items-center gap-3 w-full md:w-auto justify-center">
+                <div class="flex flex-col gap-1">
+                    <input type="text" id="answer-input" placeholder="Tu respuesta" 
+                        class="bg-slate-950 border-2 border-amber-500 rounded-xl px-4 py-3 text-2xl font-game text-center text-amber-300 w-44 focus:outline-none focus:ring-4 focus:ring-amber-500/50 transition shadow-lg"
+                        onkeydown="if(event.key === 'Enter') checkAnswer()">
+                    <span class="text-xs text-slate-400 text-center">Ej: "3/4" o "1 1/2" o "5"</span>
+                </div>
+                <button onclick="checkAnswer()" class="bg-green-600 hover:bg-green-500 text-white font-game text-xl px-6 py-4 rounded-xl border-b-4 border-green-800 active:border-b-0 active:translate-y-1 transition shadow-lg flex items-center gap-2">
+                    🎯 ¡DISPARAR!
+                </button>
+            </div>
+
+        </div>
+    </footer>
+
+    <!-- MODAL DE DIÁLOGO / PEPE LOCO -->
+    <div id="dialog-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full flex flex-col md:flex-row items-center md:items-end gap-4">
+            
+            <!-- Avatar Pepe Loco -->
+            <div class="w-40 h-40 md:w-52 md:h-52 relative flex-shrink-0">
+                <svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-2xl">
+                    <path d="M 20 35 L 80 35 L 75 20 L 25 20 Z" fill="#94a3b8" />
+                    <rect x="15" y="32" width="70" height="5" rx="2" fill="#64748b" />
+                    <rect x="78" y="23" width="12" height="6" rx="2" fill="#475569" transform="rotate(15 78 23)"/>
+                    <circle cx="50" cy="55" r="28" fill="#fbcfe8" />
+                    <circle cx="40" cy="50" r="8" fill="#fff" stroke="#000" stroke-width="1.5"/>
+                    <circle cx="41" cy="51" r="3" fill="#000" />
+                    <circle cx="62" cy="48" r="11" fill="#fff" stroke="#000" stroke-width="1.5"/>
+                    <circle cx="60" cy="47" r="4" fill="#000" />
+                    <polygon points="50,55 45,63 55,63" fill="#f43f5e" />
+                    <path d="M 30 68 Q 50 85 70 68 Q 50 78 30 68" fill="#e2e8f0" />
+                    <path d="M 38 65 Q 50 75 62 65" stroke="#000" stroke-width="2" fill="none"/>
+                    <rect x="46" y="66" width="4" height="5" fill="#fff" stroke="#000" stroke-width="0.5"/>
+                </svg>
+            </div>
+
+            <!-- Bocadillo de Diálogo Altamente Visible -->
+            <div class="speech-bubble p-6 flex-1 w-full border-4 border-slate-900 shadow-2xl">
+                <h3 id="dialog-title" class="text-2xl font-game text-indigo-700 mb-2 border-b-2 border-slate-200 pb-1">
+                    ¡PEPE LOCO DICE!
+                </h3>
+                <div id="dialog-text" class="text-lg md:text-xl font-bold leading-relaxed text-slate-800 mb-4 max-h-60 overflow-y-auto">
+                    Explicación matemática clara y fácil de leer...
+                </div>
+                <button onclick="closeDialog()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-game text-lg py-3 rounded-xl border-b-4 border-indigo-900 active:border-b-0 active:translate-y-1 transition">
+                    ¡ENTENDIDO, A COMBATIR! 🚀
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODAL SELECCIÓN DE MUNDOS -->
+    <div id="world-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div class="flex justify-between items-center mb-6 border-b-2 border-slate-700 pb-3">
+                <h2 class="text-3xl font-game text-amber-400">🗺️ Selecciona un Mundo</h2>
+                <button onclick="closeWorldSelect()" class="text-slate-400 hover:text-white font-game text-2xl">✖</button>
+            </div>
+            <div id="worlds-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Se genera dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- AUDIO WEBAUDIO (SINTETIZADOR BGM Y EFECTOS) -->
+    <script>
+        let audioCtx = null;
+        let isAudioPlaying = false;
+        let musicInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function toggleAudio() {
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            isAudioPlaying = !isAudioPlaying;
+            const btnText = document.getElementById('audio-text');
+            const btnIcon = document.getElementById('audio-icon');
+
+            if (isAudioPlaying) {
+                btnText.innerText = "Música: ON";
+                btnIcon.innerText = "🎶";
+                startBackgroundMusic();
+            } else {
+                btnText.innerText = "Música: OFF";
+                btnIcon.innerText = "🎵";
+                stopBackgroundMusic();
+            }
+        }
+
+        const melody = [
+            { note: 261.63, duration: 0.25 }, { note: 293.66, duration: 0.25 },
+            { note: 329.63, duration: 0.25 }, { note: 349.23, duration: 0.25 },
+            { note: 392.00, duration: 0.5 },  { note: 329.63, duration: 0.5 },
+            { note: 261.63, duration: 0.5 },  { note: 293.66, duration: 0.25 },
+            { note: 329.63, duration: 0.25 }, { note: 293.66, duration: 0.5 },
+            { note: 196.00, duration: 0.5 }
+        ];
+
+        let noteIdx = 0;
+
+        function startBackgroundMusic() {
+            if (musicInterval) clearInterval(musicInterval);
+            musicInterval = setInterval(() => {
+                if (!isAudioPlaying) return;
+                const current = melody[noteIdx];
+                playTone(current.note, current.duration, 'triangle', 0.05);
+                noteIdx = (noteIdx + 1) % melody.length;
+            }, 350);
+        }
+
+        function stopBackgroundMusic() {
+            if (musicInterval) clearInterval(musicInterval);
+        }
+
+        function playTone(freq, duration, type = 'sine', volume = 0.1) {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) { console.log(e); }
+        }
+
+        function playSoundEffect(type) {
+            initAudio();
+            if (!audioCtx || audioCtx.state !== 'running') return;
+
+            if (type === 'shoot') {
+                playTone(600, 0.15, 'square', 0.1);
+                setTimeout(() => playTone(300, 0.1, 'square', 0.08), 50);
+            } else if (type === 'hit') {
+                playTone(150, 0.2, 'sawtooth', 0.15);
+            } else if (type === 'win') {
+                playTone(523.25, 0.2, 'triangle', 0.15);
+                setTimeout(() => playTone(659.25, 0.2, 'triangle', 0.15), 150);
+                setTimeout(() => playTone(783.99, 0.4, 'triangle', 0.15), 300);
+            } else if (type === 'error') {
+                playTone(180, 0.2, 'sawtooth', 0.15);
+                setTimeout(() => playTone(130, 0.3, 'sawtooth', 0.15), 150);
+            }
+        }
+    </script>
+
+    <!-- LÓGICA PRINCIPAL DEL JUEGO -->
+    <script>
+        // FUNCIÓN AUXILIAR PARA RENDERIZAR FRACCIONES VERTICALES
+        function makeFracHTML(num, den) {
+            return `<span class="frac"><span class="num">${num}</span><span class="den">${den}</span></span>`;
+        }
+
+        // CONFIGURACIÓN DE MUNDOS Y TUTORIALES
+        const WORLDS = [
+            {
+                id: 1,
+                name: "Mundo 1: Suma y Resta Homogénea",
+                desc: "Fracciones con el mismo denominador",
+                tutorialTitle: "¡PEPE LOCO: DENOMINADORES IGUALES!",
+                tutorialText: `¡Hola vecino! Cuando los números de abajo (denominadores) son IGUALES, solo debes sumar o restar los números de arriba (numeradores) y dejar el mismo número abajo.<br><br><b>Ejemplo:</b> ${makeFracHTML(1,5)} + ${makeFracHTML(2,5)} = ${makeFracHTML('1+2',5)} = <b>${makeFracHTML(3,5)}</b>`,
+                genProblem: () => {
+                    const den = rand(2, 9);
+                    const num1 = rand(1, 5);
+                    const num2 = rand(1, 5);
+                    const isAdd = Math.random() > 0.4;
+                    if (isAdd) {
+                        return { expr: `${makeFracHTML(num1, den)} + ${makeFracHTML(num2, den)}`, ansNum: num1 + num2, ansDen: den };
+                    } else {
+                        const max = Math.max(num1, num2);
+                        const min = Math.min(num1, num2);
+                        const finalNum = max === min ? max + 1 : max;
+                        return { expr: `${makeFracHTML(finalNum, den)} - ${makeFracHTML(min, den)}`, ansNum: finalNum - min, ansDen: den };
+                    }
+                }
+            },
+            {
+                id: 2,
+                name: "Mundo 2: Múltiplos de Denominador",
+                desc: "Un denominador es múltiplo del otro",
+                tutorialTitle: "¡PEPE LOCO: MULTIPLICA Y CONVIERTE!",
+                tutorialText: `¡Mira esto! Si un número de abajo es múltiplo del otro, amplifica la fracción más pequeña multiplicando arriba y abajo para que tengan el mismo denominador.<br><br><b>Ejemplo:</b> ${makeFracHTML(1,2)} + ${makeFracHTML(1,4)} → Multiplica ${makeFracHTML(1,2)} por 2 → ${makeFracHTML(2,4)} + ${makeFracHTML(1,4)} = <b>${makeFracHTML(3,4)}</b>`,
+                genProblem: () => {
+                    const d1 = rand(2, 4);
+                    const mult = rand(2, 3);
+                    const d2 = d1 * mult;
+                    const n1 = rand(1, 3);
+                    const n2 = rand(1, 3);
+                    return { expr: `${makeFracHTML(n1, d1)} + ${makeFracHTML(n2, d2)}`, ansNum: (n1 * mult) + n2, ansDen: d2 };
+                }
+            },
+            {
+                id: 3,
+                name: "Mundo 3: Productos Cruzados",
+                desc: "Método de la Carita Feliz / Mariposa",
+                tutorialTitle: "¡PEPE LOCO: LA CARITA FELIZ!",
+                tutorialText: `¡Cuando los denominadores son totalmente diferentes, usa la carita feliz! Multiplica en cruz para arriba y multiplica los dos de abajo.<br><br><b>Ejemplo:</b> ${makeFracHTML(1,3)} + ${makeFracHTML(1,2)} = ${makeFracHTML('1×2 + 3×1', '3×2')} = <b>${makeFracHTML(5,6)}</b>`,
+                genProblem: () => {
+                    const d1 = 3, d2 = 5;
+                    const n1 = rand(1, 2), n2 = rand(1, 2);
+                    return { expr: `${makeFracHTML(n1, d1)} + ${makeFracHTML(n2, d2)}`, ansNum: (n1*d2) + (n2*d1), ansDen: d1*d2 };
+                }
+            },
+            {
+                id: 4,
+                name: "Mundo 4: Simplificación Máxima",
+                desc: "Reduce las fracciones a su expresión mínima",
+                tutorialTitle: "¡PEPE LOCO: HAZLO MÁS PEQUEÑO!",
+                tutorialText: `¡Divide arriba y abajo entre el mismo número hasta que no se pueda más!<br><br><b>Ejemplo:</b> ${makeFracHTML(4,8)} → Divide entre 4 → <b>${makeFracHTML(1,2)}</b>`,
+                genProblem: () => {
+                    const baseN = rand(1, 3);
+                    const baseD = rand(4, 6);
+                    const factor = rand(2, 3);
+                    return { expr: `Simplifica: ${makeFracHTML(baseN * factor, baseD * factor)}`, ansNum: baseN, ansDen: baseD };
+                }
+            },
+            {
+                id: 5,
+                name: "Mundo 5: Multiplicación de Fracciones",
+                desc: "Directo: Numerador x Numerador",
+                tutorialTitle: "¡PEPE LOCO: EN LÍNEA RECTA!",
+                tutorialText: `¡La multiplicación es la más fácil! Multiplica el de arriba por el de arriba, y el de abajo por el de abajo.<br><br><b>Ejemplo:</b> ${makeFracHTML(2,3)} × ${makeFracHTML(3,4)} = ${makeFracHTML(6,12)} = <b>${makeFracHTML(1,2)}</b>`,
+                genProblem: () => {
+                    const n1 = rand(1, 3), d1 = rand(2, 4);
+                    const n2 = rand(1, 3), d2 = rand(2, 4);
+                    return { expr: `${makeFracHTML(n1, d1)} × ${makeFracHTML(n2, d2)}`, ansNum: n1 * n2, ansDen: d1 * d2 };
+                }
+            },
+            {
+                id: 6,
+                name: "Mundo 6: División de Fracciones",
+                desc: "Multiplica en cruz",
+                tutorialTitle: "¡PEPE LOCO: DAR LA VUELTA!",
+                tutorialText: `Para dividir fracciones, multiplica en cruz (el de arriba del primero por el de abajo del segundo).<br><br><b>Ejemplo:</b> ${makeFracHTML(1,2)} ÷ ${makeFracHTML(2,3)} = ${makeFracHTML('1×3', '2×2')} = <b>${makeFracHTML(3,4)}</b>`,
+                genProblem: () => {
+                    const n1 = rand(1, 3), d1 = rand(2, 4);
+                    const n2 = rand(1, 3), d2 = rand(2, 4);
+                    return { expr: `${makeFracHTML(n1, d1)} ÷ ${makeFracHTML(n2, d2)}`, ansNum: n1 * d2, ansDen: d1 * n2 };
+                }
+            },
+            {
+                id: 7,
+                name: "Mundo 7: Fracciones Mixtas e Impropias",
+                desc: "Pasa de Mixto a Impropia",
+                tutorialTitle: "¡PEPE LOCO: NÚMEROS MIXTOS!",
+                tutorialText: `Multiplica el entero por el denominador y súmale el numerador.<br><br><b>Ejemplo:</b> 1 ${makeFracHTML(1,2)} = ${makeFracHTML('1×2 + 1', 2)} = <b>${makeFracHTML(3,2)}</b>`,
+                genProblem: () => {
+                    const w = rand(1, 3), d = rand(2, 5), n = rand(1, d - 1);
+                    return { expr: `Convierte a Impropia: ${w} ${makeFracHTML(n, d)}`, ansNum: (w * d) + n, ansDen: d };
+                }
+            },
+            {
+                id: 8,
+                name: "Mundo 8: Guarida Zomboss",
+                desc: "¡Desafío final con todos los ejercicios!",
+                tutorialTitle: "¡PEPE LOCO: EL JEFE FINAL!",
+                tutorialText: "¡Zomboss está aquí! Deberás aplicar todo lo que has aprendido sobre fracciones para derrotarlo.",
+                genProblem: () => {
+                    const w = WORLDS[rand(0, 6)];
+                    return w.genProblem();
+                }
+            }
+        ];
+
+        // UTILIDADES MATEMÁTICAS
+        function gcd(a, b) { return b === 0 ? Math.abs(a) : gcd(b, a % b); }
+        function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+        // ESTADO DEL JUEGO
+        let unlockedWorldIdx = 0; // Desbloqueo progresivo
+        let currentWorldIdx = 0;
+        let score = 0;
+        let zombiesInWave = 0;
+        let maxZombiesInWave = 5;
+        let activeZombies = [];
+        let gameLoopInterval = null;
+        let zombieIdCounter = 0;
+
+        // SISTEMA DE PLANTAS (Máximo 9 plantas, luego mejoras)
+        let plantCount = 1;
+        let plantLevel = 1;
+        const plantColors = ["#66bb6a", "#29b6f6", "#ab47bc", "#ffa726", "#ef5350"];
+
+        window.onload = () => {
+            renderWorldGrid();
+            startWorld(0);
+        };
+
+        function startWorld(worldIdx) {
+            currentWorldIdx = worldIdx;
+            const world = WORLDS[currentWorldIdx];
+            
+            // Reiniciar campo
+            document.getElementById('zombies-container').innerHTML = '';
+            document.getElementById('projectiles-container').innerHTML = '';
+            activeZombies = [];
+            zombiesInWave = 0;
+            plantCount = 1;
+            plantLevel = 1;
+
+            updatePlantsUI();
+
+            // Actualizar Interfaz
+            document.getElementById('world-display').innerText = `Mundo ${world.id}`;
+            updateZombieCountUI();
+
+            showDialog(world.tutorialTitle, world.tutorialText);
+
+            if (gameLoopInterval) clearInterval(gameLoopInterval);
+            gameLoopInterval = setInterval(gameLoop, 50);
+
+            spawnZombie();
+        }
+
+        // DIBUJAR PLANTAS EN CAMPO
+        function updatePlantsUI() {
+            const container = document.getElementById('plants-container');
+            container.innerHTML = '';
+
+            const currentColor = plantColors[(plantLevel - 1) % plantColors.length];
+
+            for (let i = 0; i < plantCount; i++) {
+                const pEl = document.createElement('div');
+                pEl.className = "relative flex items-center justify-center animate-float";
+                pEl.innerHTML = `
+                    <div class="w-16 h-16 relative filter drop-shadow-lg">
+                        <svg viewBox="0 0 100 100" class="w-full h-full">
+                            <path d="M 50 80 Q 40 95 20 90 Q 35 75 45 75 Z" fill="#2e7d32" />
+                            <path d="M 50 80 Q 60 95 80 90 Q 65 75 55 75 Z" fill="#388e3c" />
+                            <path d="M 50 50 Q 45 70 50 85" stroke="#1b5e20" stroke-width="8" fill="none" stroke-linecap="round"/>
+                            <ellipse cx="50" cy="40" rx="30" ry="25" fill="${currentColor}" />
+                            <ellipse cx="65" cy="35" rx="15" ry="12" fill="${currentColor}" />
+                            <circle cx="78" cy="35" r="8" fill="#1b5e20" />
+                            <circle cx="42" cy="30" r="5" fill="#000" />
+                            <circle cx="44" cy="28" r="2" fill="#fff" />
+                        </svg>
+                        ${plantLevel > 1 ? `<span class="absolute -top-1 -right-1 bg-amber-400 text-black text-[10px] font-black px-1.5 py-0.5 rounded-full border border-black">Lvl ${plantLevel}</span>` : ''}
+                    </div>
+                `;
+                container.appendChild(pEl);
+            }
+        }
+
+        // CONTROL DE VARIOS ZOMBIES SIMULTÁNEOS
+        function spawnZombie() {
+            if (zombiesInWave >= maxZombiesInWave && activeZombies.length > 0) return;
+
+            zombieIdCounter++;
+            const world = WORLDS[currentWorldIdx];
+            const mathData = world.genProblem();
+
+            const hp = currentWorldIdx === 7 ? rand(2, 4) : rand(1, 2);
+            const topPos = rand(10, 70);
+
+            const zombieObj = {
+                id: zombieIdCounter,
+                x: 90,
+                top: topPos,
+                speed: 0.05 + (currentWorldIdx * 0.01),
+                hp: hp,
+                maxHp: hp,
+                math: mathData,
+                isEating: false,
+                element: null
+            };
+
+            const zEl = document.createElement('div');
+            zEl.id = `zombie-${zombieObj.id}`;
+            zEl.className = 'absolute transition-transform duration-75 animate-zombie flex flex-col items-center pointer-events-auto';
+            zEl.style.top = `${zombieObj.top}%`;
+            zEl.style.left = `${zombieObj.x}%`;
+
+            zEl.innerHTML = `
+                <div class="w-16 bg-slate-800 border border-slate-600 rounded-full h-3 mb-1 overflow-hidden">
+                    <div id="hp-${zombieObj.id}" class="bg-red-500 h-full transition-all duration-300" style="width: 100%"></div>
+                </div>
+                <div class="w-24 h-28 filter drop-shadow-xl">
+                    <svg viewBox="0 0 100 120" class="w-full h-full">
+                        <path d="M 40 50 L 35 100 L 45 100 L 48 70 L 52 70 L 55 100 L 65 100 L 60 50 Z" fill="#334155"/>
+                        <rect x="35" y="40" width="30" height="25" fill="#7f1d1d" rx="3"/>
+                        <circle cx="50" cy="28" r="20" fill="#6b7280"/>
+                        <circle cx="43" cy="24" r="5" fill="#fff"/>
+                        <circle cx="44" cy="24" r="2" fill="#000"/>
+                        <circle cx="58" cy="26" r="7" fill="#fff"/>
+                        <circle cx="57" cy="26" r="3" fill="#000"/>
+                        <path d="M 40 38 Q 50 42 60 35" stroke="#000" stroke-width="2" fill="none"/>
+                    </svg>
+                </div>
+            `;
+
+            document.getElementById('zombies-container').appendChild(zEl);
+            zombieObj.element = zEl;
+            activeZombies.push(zombieObj);
+            zombiesInWave++;
+            updateZombieCountUI();
+
+            updateCurrentTargetMath();
+        }
+
+        // CICLO DE JUEGO PRINCIPAL
+        function gameLoop() {
+            if (activeZombies.length === 0 && zombiesInWave < maxZombiesInWave) {
+                spawnZombie();
+                return;
+            }
+
+            if (activeZombies.length < 3 && zombiesInWave < maxZombiesInWave && Math.random() < 0.02) {
+                spawnZombie();
+            }
+
+            for (let i = activeZombies.length - 1; i >= 0; i--) {
+                const z = activeZombies[i];
+
+                // Zona de la línea defensiva de plantas (Aproximadamente X = 18%)
+                if (z.x <= 20 && plantCount > 0) {
+                    // El zombi se detiene a devorar una planta
+                    if (!z.isEating) {
+                        z.isEating = true;
+                        z.eatTimer = setInterval(() => {
+                            if (plantCount > 0) {
+                                plantCount--;
+                                updatePlantsUI();
+                                playSoundEffect('error');
+                                if (plantCount === 0) {
+                                    clearInterval(z.eatTimer);
+                                    z.isEating = false;
+                                }
+                            } else {
+                                clearInterval(z.eatTimer);
+                                z.isEating = false;
+                            }
+                        }, 3000); // Devora 1 planta cada 3 segundos
+                    }
+                } else if (!z.isEating) {
+                    z.x -= z.speed;
+                    if (z.element) {
+                        z.element.style.left = `${z.x}%`;
+                    }
+                }
+
+                // DERROTA: El zombi llega al final del campo (X <= 2)
+                if (z.x <= 2) {
+                    if (z.eatTimer) clearInterval(z.eatTimer);
+                    playSoundEffect('error');
+                    alert("¡Un zombi ha logrado pasar al final del campo y devoró tu cerebro! 🧠💥\nInténtalo de nuevo.");
+                    startWorld(currentWorldIdx);
+                    return;
+                }
+            }
+
+            updateCurrentTargetMath();
+        }
+
+        function getTargetZombie() {
+            if (activeZombies.length === 0) return null;
+            return activeZombies.reduce((prev, curr) => (prev.x < curr.x) ? prev : curr);
+        }
+
+        function updateCurrentTargetMath() {
+            const target = getTargetZombie();
+            const mathEl = document.getElementById('math-problem');
+            const targetInfo = document.getElementById('target-zombie-info');
+
+            if (target) {
+                mathEl.innerHTML = target.math.expr;
+                targetInfo.innerText = `🎯 Apuntando al Zombi más cercano (Vida: ${target.hp}/${target.maxHp})`;
+            } else {
+                mathEl.innerHTML = "¡Esperando más Zombis!";
+                targetInfo.innerText = "Campo despejado por ahora...";
+            }
+        }
+
+        // VERIFICACIÓN DE RESPUESTAS Y RECOMPENSAS
+        function checkAnswer() {
+            const target = getTargetZombie();
+            if (!target) return;
+
+            const inputVal = document.getElementById('answer-input').value.trim();
+            if (!inputVal) return;
+
+            const parsed = parseFractionInput(inputVal);
+            if (!parsed) {
+                alert("Por favor introduce una fracción válida. Ejemplo: '3/4' o '1 1/2' o '5'");
+                return;
+            }
+
+            const userGcd = gcd(parsed.num, parsed.den);
+            const userNum = parsed.num / userGcd;
+            const userDen = parsed.den / userGcd;
+
+            const targetGcd = gcd(target.math.ansNum, target.math.ansDen);
+            const targetNum = target.math.ansNum / targetGcd;
+            const targetDen = target.math.ansDen / targetGcd;
+
+            if (userNum === targetNum && userDen === targetDen) {
+                // RESPUESTA CORRECTA: Añadir planta o mejorar
+                if (plantCount < 9) {
+                    plantCount++;
+                } else {
+                    plantLevel++; // Si ya hay 9 plantas, se van mejorando
+                }
+                updatePlantsUI();
+
+                playSoundEffect('shoot');
+                launchProjectile(target, () => {
+                    const damage = plantLevel; // Mayor nivel = más daño por disparo
+                    target.hp -= damage;
+                    const hpBar = document.getElementById(`hp-${target.id}`);
+                    if (hpBar) hpBar.style.width = `${Math.max(0, (target.hp / target.maxHp) * 100)}%`;
+
+                    if (target.hp <= 0) {
+                        playSoundEffect('hit');
+                        if (target.eatTimer) clearInterval(target.eatTimer);
+                        if (target.element) target.element.remove();
+                        activeZombies = activeZombies.filter(z => z.id !== target.id);
+                        score += 100;
+                        document.getElementById('score-display').innerText = `Puntos: ${score}`;
+                    }
+
+                    // VICTORIA DEL NIVEL
+                    if (activeZombies.length === 0 && zombiesInWave >= maxZombiesInWave) {
+                        playSoundEffect('win');
+                        setTimeout(() => {
+                            alert(`¡Excelente! Has completado el Mundo ${WORLDS[currentWorldIdx].id}! 🎉`);
+                            if (currentWorldIdx + 1 > unlockedWorldIdx) {
+                                unlockedWorldIdx = Math.min(currentWorldIdx + 1, WORLDS.length - 1);
+                                renderWorldGrid(); // Actualizar niveles desbloqueados
+                            }
+                            if (currentWorldIdx < WORLDS.length - 1) {
+                                startWorld(currentWorldIdx + 1);
+                            } else {
+                                alert("🏆 ¡FELICIDADES! ¡Has conquistado todos los mundos y derrotado a Zomboss!");
+                            }
+                        }, 300);
+                    }
+                });
+            } else {
+                // RESPUESTA INCORRECTA: Pierde una planta
+                playSoundEffect('error');
+                if (plantCount > 0) {
+                    plantCount--;
+                    updatePlantsUI();
+                }
+                
+                if (plantCount === 0) {
+                    alert("¡Te has quedado sin plantas para defenderte!");
+                }
+            }
+
+            document.getElementById('answer-input').value = '';
+        }
+
+        function parseFractionInput(str) {
+            str = str.trim();
+            if (str.includes(' ')) {
+                const parts = str.split(' ');
+                if (parts.length === 2 && parts[1].includes('/')) {
+                    const whole = parseInt(parts[0]);
+                    const fParts = parts[1].split('/');
+                    const n = parseInt(fParts[0]);
+                    const d = parseInt(fParts[1]);
+                    if (!isNaN(whole) && !isNaN(n) && !isNaN(d) && d !== 0) {
+                        return { num: (whole * d) + n, den: d };
+                    }
+                }
+            }
+            if (str.includes('/')) {
+                const parts = str.split('/');
+                const n = parseInt(parts[0]);
+                const d = parseInt(parts[1]);
+                if (!isNaN(n) && !isNaN(d) && d !== 0) {
+                    return { num: n, den: d };
+                }
+            }
+            const val = parseInt(str);
+            if (!isNaN(val)) {
+                return { num: val, den: 1 };
+            }
+            return null;
+        }
+
+        function launchProjectile(targetZombie, onHit) {
+            const proj = document.createElement('div');
+            proj.className = 'absolute w-7 h-7 bg-green-400 border-2 border-green-200 rounded-full shadow-lg z-30';
+            proj.style.left = '20%';
+            proj.style.bottom = '50%';
+
+            document.getElementById('projectiles-container').appendChild(proj);
+
+            let currentX = 20;
+            const targetX = targetZombie.x;
+
+            const interval = setInterval(() => {
+                currentX += 3;
+                proj.style.left = `${currentX}%`;
+
+                if (currentX >= targetX) {
+                    clearInterval(interval);
+                    proj.remove();
+                    onHit();
+                }
+            }, 20);
+        }
+
+        function updateZombieCountUI() {
+            document.getElementById('zombie-count').innerText = `Oleada: ${zombiesInWave}/${maxZombiesInWave}`;
+        }
+
+        // MODALES
+        function showDialog(title, text) {
+            document.getElementById('dialog-title').innerText = title;
+            document.getElementById('dialog-text').innerHTML = text;
+            document.getElementById('dialog-modal').classList.remove('hidden');
+        }
+
+        function closeDialog() {
+            document.getElementById('dialog-modal').classList.add('hidden');
+        }
+
+        function openWorldSelect() {
+            renderWorldGrid();
+            document.getElementById('world-modal').classList.remove('hidden');
+        }
+
+        function closeWorldSelect() {
+            document.getElementById('world-modal').classList.add('hidden');
+        }
+
+        // RENDEREADO DE NIVELES CON DESBLOQUEO PROGRESIVO
+        function renderWorldGrid() {
+            const grid = document.getElementById('worlds-grid');
+            grid.innerHTML = '';
+            WORLDS.forEach((w, idx) => {
+                const isUnlocked = idx <= unlockedWorldIdx;
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-2xl transition flex flex-col justify-between border-2 ${
+                    isUnlocked 
+                        ? 'bg-slate-800 border-amber-500 hover:border-amber-300 cursor-pointer' 
+                        : 'bg-slate-900 border-slate-700 opacity-60 cursor-not-allowed'
+                }`;
+
+                if (isUnlocked) {
+                    card.onclick = () => {
+                        closeWorldSelect();
+                        startWorld(idx);
+                    };
+                }
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="font-game text-amber-300 text-lg">${w.name}</h4>
+                            <span>${isUnlocked ? '🔓' : '🔒'}</span>
+                        </div>
+                        <p class="text-xs text-slate-300 mb-3">${w.desc}</p>
+                    </div>
+                    <button class="w-full ${isUnlocked ? 'bg-amber-600 hover:bg-amber-500' : 'bg-slate-700'} text-white font-game text-xs py-2 rounded-xl border-b-2 border-black">
+                        ${isUnlocked ? 'JUGAR MUNDO' : 'BLOQUEADO'}
+                    </button>
+                `;
+                grid.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>
